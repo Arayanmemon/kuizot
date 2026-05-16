@@ -5,6 +5,8 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { redisStore } from 'cache-manager-ioredis-yet';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { RedisModule } from './redis/redis.module';
+import { GameModule } from './game/game.module';
 
 @Module({
   imports: [
@@ -36,6 +38,8 @@ import { AppService } from './app.service';
       }),
       inject: [ConfigService],
     }),
+    RedisModule,
+    GameModule,
   ],
   controllers: [AppController],
   providers: [AppService],
