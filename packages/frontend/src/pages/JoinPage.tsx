@@ -5,18 +5,40 @@ import { useGameStore } from '../store/gameStore';
 export const JoinPage = () => {
   const [inputPin, setInputPin] = useState('');
   const [inputNickname, setInputNickname] = useState('');
-  const { setSessionData } = useGameStore();
+  const [error, setError] = useState('');
+  const { setSessionData, socket, isConnected } = useGameStore();
   const navigate = useNavigate();
 
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    
     if (!inputPin || !inputNickname) return;
     
-    // In a real app, we'd emit 'join_session' to the socket here to validate the PIN
-    // For the UI placeholder, we'll assume it works and transition.
-    const tempUserId = `user_${Math.random().toString(36).substr(2, 9)}`;
-    setSessionData(inputPin, 'player', tempUserId, inputNickname);
-    navigate('/player');
+    if (!socket || !isConnected) {
+      setError('Not connected to server. Please wait...');
+      return;
+    }
+
+    const userId = `user_${Math.random().toString(36).substring(2, 11)}`;
+    
+    // Emit join session event to server
+    socket.emit('join_session', {
+      pin: inputPin,
+      nickname: inputNickname,
+      userId,
+    });
+
+    // Listen for success response (one-time)
+    socket.once('join_success', () => {
+      setSessionData(inputPin, 'player', userId, inputNickname);
+      navigate('/player');
+    });
+
+    // Listen for error response (one-time)
+    socket.once('join_error', (data) => {
+      setError(data.message);
+    });
   };
 
   return (
@@ -44,10 +66,15 @@ export const JoinPage = () => {
           />
           <button
             type="submit"
-            className="w-full bg-gray-900 text-white text-xl font-bold py-4 rounded hover:bg-gray-800 transition-colors"
+            disabled={!isConnected}
+            className="w-full bg-gray-900 text-white text-xl font-bold py-4 rounded hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Enter
+            {isConnected ? 'Enter' : 'Connecting...'}
           </button>
+          
+          {error && (
+            <p className="text-red-500 text-center text-sm">{error}</p>
+          )}
         </form>
       </div>
     </div>

@@ -20,7 +20,7 @@ import { GameModule } from './game/game.module';
         host: configService.get<string>('DB_HOST', 'localhost'),
         port: configService.get<number>('DB_PORT', 5432),
         username: configService.get<string>('DB_USERNAME', 'postgres'),
-        password: configService.get<string>('DB_PASSWORD', 'password'),
+        password: configService.get<string>('DB_PASSWORD', '12345678'),
         database: configService.get<string>('DB_DATABASE', 'real_time_learning'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
         synchronize: true, // Auto-sync in dev (not for production)

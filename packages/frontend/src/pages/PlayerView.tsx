@@ -1,19 +1,49 @@
+import { useState, useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
 
 export const PlayerView = () => {
-  const { phase, currentQuestion, score, nickname } = useGameStore();
+  const { 
+    phase, 
+    currentQuestion, 
+    score, 
+    nickname, 
+    pin, 
+    userId, 
+    socket, 
+    hasAnswered, 
+    lastAnswerCorrect 
+  } = useGameStore();
+  
+  const [questionStartTime, setQuestionStartTime] = useState<number>(0);
 
-  // Mock answers for UI development if not provided by store
-  const mockOptions = currentQuestion?.options || [
-    { id: 'a', text: 'Option Red', color: '#ef4444' }, // red-500
-    { id: 'b', text: 'Option Blue', color: '#3b82f6' }, // blue-500
-    { id: 'c', text: 'Option Yellow', color: '#eab308' }, // yellow-500
-    { id: 'd', text: 'Option Green', color: '#22c55e' }, // green-500
-  ];
+  // Track when a new question starts
+  useEffect(() => {
+    if (phase === 'question' && currentQuestion) {
+      setQuestionStartTime(Date.now());
+    }
+  }, [phase, currentQuestion]);
 
   const handleAnswerClick = (optionId: string) => {
-    // In the real implementation, emit socket event here
-    console.log('Answer clicked:', optionId);
+    if (!socket || !currentQuestion || hasAnswered) return;
+    
+    const timeTakenMs = Date.now() - questionStartTime;
+    
+    // For now, we'll hardcode the correct answer as 'a' (Paris)
+    // In a real app, this would come from the backend or be encrypted
+    const correctOptionId = 'a';
+    
+    socket.emit('submit_answer', {
+      pin,
+      questionId: currentQuestion.id,
+      userId,
+      nickname,
+      optionId,
+      timeTakenMs,
+      scoringMode: currentQuestion.scoringMode || 'classic',
+      maxPoints: currentQuestion.maxPoints || 1000,
+      timeLimit: currentQuestion.timeLimit,
+      correctOptionId,
+    });
   };
 
   return (
@@ -37,15 +67,31 @@ export const PlayerView = () => {
 
         {phase === 'question' && (
           <div className="w-full max-w-lg h-full max-h-[600px] grid grid-cols-2 gap-4">
-            {mockOptions.map((opt) => (
+            {(currentQuestion?.options || []).map((opt) => (
               <button
                 key={opt.id}
                 onClick={() => handleAnswerClick(opt.id)}
+                disabled={hasAnswered}
                 style={{ backgroundColor: opt.color }}
-                className="w-full h-full min-h-[120px] rounded-lg shadow-md hover:brightness-110 active:scale-95 transition-all"
+                className={`w-full h-full min-h-[120px] rounded-lg shadow-md transition-all ${
+                  hasAnswered 
+                    ? 'opacity-50 cursor-not-allowed' 
+                    : 'hover:brightness-110 active:scale-95'
+                }`}
                 aria-label={`Answer ${opt.id}`}
-              />
+              >
+                {opt.text}
+              </button>
             ))}
+            {hasAnswered && (
+              <div className="col-span-2 text-center mt-4">
+                {lastAnswerCorrect ? (
+                  <p className="text-green-600 text-xl font-bold">Correct! 🎉</p>
+                ) : (
+                  <p className="text-red-600 text-xl font-bold">Wrong! 😢</p>
+                )}
+              </div>
+            )}
           </div>
         )}
 

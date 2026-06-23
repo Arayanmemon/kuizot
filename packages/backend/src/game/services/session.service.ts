@@ -33,6 +33,24 @@ export class SessionService {
   }
 
   /**
+   * Retrieves session metadata.
+   */
+  async getSession(pin: string): Promise<{ hostId: string; status: string; currentQuestionId: string } | null> {
+    const client = this.redisService.getClient();
+    const data = await client.hgetall(`session:${pin}`);
+    
+    if (!data || Object.keys(data).length === 0) {
+      return null;
+    }
+    
+    return {
+      hostId: data.host_id,
+      status: data.status,
+      currentQuestionId: data.current_question_id,
+    };
+  }
+
+  /**
    * Updates the status of the session (e.g., waiting -> active).
    */
   async updateSessionStatus(pin: string, status: string): Promise<void> {

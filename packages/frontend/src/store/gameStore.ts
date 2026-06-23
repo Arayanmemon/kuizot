@@ -20,12 +20,16 @@ export interface QuestionData {
   text: string;
   options: AnswerOption[];
   timeLimit: number;
+  scoringMode: 'classic' | 'accuracy';
+  maxPoints: number;
 }
 
 interface GameState {
   // Socket Connection
   socket: Socket | null;
+  isConnected: boolean;
   setSocket: (socket: Socket | null) => void;
+  setConnected: (connected: boolean) => void;
 
   // Session Data
   pin: string;
@@ -41,6 +45,8 @@ interface GameState {
   // Live Data
   players: { userId: string; nickname: string }[];
   setPlayers: (players: { userId: string; nickname: string }[]) => void;
+  addPlayer: (player: { userId: string; nickname: string }) => void;
+  removePlayer: (player: { userId: string; nickname: string }) => void;
   
   currentQuestion: QuestionData | null;
   setCurrentQuestion: (question: QuestionData | null) => void;
@@ -51,12 +57,20 @@ interface GameState {
   score: number;
   setScore: (score: number) => void;
   
+  // Answer tracking
+  hasAnswered: boolean;
+  setHasAnswered: (hasAnswered: boolean) => void;
+  lastAnswerCorrect: boolean | null;
+  setLastAnswerCorrect: (correct: boolean | null) => void;
+  
   resetStore: () => void;
 }
 
 export const useGameStore = create<GameState>((set) => ({
   socket: null,
+  isConnected: false,
   setSocket: (socket) => set({ socket }),
+  setConnected: (isConnected) => set({ isConnected }),
 
   pin: '',
   role: null,
@@ -69,6 +83,12 @@ export const useGameStore = create<GameState>((set) => ({
 
   players: [],
   setPlayers: (players) => set({ players }),
+  addPlayer: (player) => set((state) => ({ 
+    players: [...state.players, player] 
+  })),
+  removePlayer: (player) => set((state) => ({ 
+    players: state.players.filter((p) => p.userId !== player.userId) 
+  })),
 
   currentQuestion: null,
   setCurrentQuestion: (currentQuestion) => set({ currentQuestion }),
@@ -78,6 +98,11 @@ export const useGameStore = create<GameState>((set) => ({
 
   score: 0,
   setScore: (score) => set({ score }),
+  
+  hasAnswered: false,
+  setHasAnswered: (hasAnswered) => set({ hasAnswered }),
+  lastAnswerCorrect: null,
+  setLastAnswerCorrect: (lastAnswerCorrect) => set({ lastAnswerCorrect }),
 
   resetStore: () => set({
     pin: '',
@@ -87,5 +112,8 @@ export const useGameStore = create<GameState>((set) => ({
     currentQuestion: null,
     leaderboard: [],
     score: 0,
+    isConnected: false,
+    hasAnswered: false,
+    lastAnswerCorrect: null,
   }),
 }));

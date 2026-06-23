@@ -2,26 +2,59 @@ import { useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 
 export const HostDashboard = () => {
-  const { pin, phase, players, leaderboard, currentQuestion, setSessionData, setPhase } = useGameStore();
+  const { pin, phase, players, leaderboard, currentQuestion, setSessionData, setPhase, socket, isConnected } = useGameStore();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [answerCount, setAnswerCount] = useState(0);
 
-  // In a real app, this would hit a REST API or emit a socket event to create a session
+  // Generate PIN by creating a session via socket
   const generatePin = () => {
+    if (!socket || !isConnected) return;
+    
     setIsGenerating(true);
-    setTimeout(() => {
-      // Mock PIN generation
-      const newPin = Math.floor(100000 + Math.random() * 900000).toString();
-      setSessionData(newPin, 'host', 'host_123');
+    const hostId = `host_${Math.random().toString(36).substring(2, 11)}`;
+    
+    socket.emit('create_session', { hostId });
+    
+    socket.once('session_created', (data) => {
+      setSessionData(data.pin, 'host', hostId);
       setIsGenerating(false);
-    }, 500);
+    });
   };
 
   const startQuestion = () => {
+    if (!socket || !pin) return;
+    
+    // For now, send a mock question (in a real app, this would come from the quiz DB)
+    const mockQuestion = {
+      pin,
+      questionId: 'q_1',
+      questionText: 'What is the capital of France?',
+      options: [
+        { id: 'a', text: 'Paris', color: '#ef4444' },
+        { id: 'b', text: 'London', color: '#3b82f6' },
+        { id: 'c', text: 'Berlin', color: '#eab308' },
+        { id: 'd', text: 'Madrid', color: '#22c55e' },
+      ],
+      timeLimit: 20000,
+      scoringMode: 'classic' as const,
+      maxPoints: 1000,
+    };
+    
+    setAnswerCount(0);
+    socket.emit('start_question', mockQuestion);
     setPhase('question');
+    
+    // Listen for answers
+    socket.on('answer_received', () => {
+      setAnswerCount((prev) => prev + 1);
+    });
   };
 
   const showLeaderboard = () => {
-    setPhase('leaderboard');
+    if (!socket || !pin) return;
+    
+    socket.emit('show_leaderboard', { pin });
+    socket.off('answer_received'); // Stop listening for answers
   };
 
   // If no PIN exists, show the setup screen
@@ -29,9 +62,12 @@ export const HostDashboard = () => {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8">
         <h1 className="text-4xl font-bold mb-8">Host a new Game</h1>
+        {!isConnected && (
+          <p className="text-red-500 mb-4">Connecting to server...</p>
+        )}
         <button
           onClick={generatePin}
-          disabled={isGenerating}
+          disabled={isGenerating || !isConnected}
           className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-8 rounded shadow-lg text-2xl transition disabled:opacity-50"
         >
           {isGenerating ? 'Generating...' : 'Generate Game PIN'}
@@ -81,6 +117,7 @@ export const HostDashboard = () => {
         <div className="text-center mb-8">
           <h2 className="text-4xl font-bold mb-4">{currentQuestion?.text || 'What is the capital of France?'}</h2>
           <div className="text-6xl font-black text-purple-600">20</div> {/* Mock Timer */}
+          <div className="text-lg text-gray-500 mt-2">{answerCount} / {players.length} answered</div>
         </div>
 
         <div className="grid grid-cols-2 gap-4 flex-1 max-w-4xl w-full mx-auto">
