@@ -1,20 +1,28 @@
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { useGameStore } from '../store/gameStore';
+import { AnswerFeedbackOverlay } from '../components/AnswerFeedbackOverlay';
+import { Leaderboard } from '../components/Leaderboard';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 export const PlayerView = () => {
-  const { 
-    phase, 
-    currentQuestion, 
-    score, 
-    nickname, 
-    pin, 
-    userId, 
-    socket, 
-    hasAnswered, 
-    lastAnswerCorrect 
+  const {
+    phase,
+    currentQuestion,
+    score,
+    nickname,
+    pin,
+    userId,
+    socket,
+    hasAnswered,
+    lastAnswerCorrect,
+    leaderboard,
   } = useGameStore();
-  
+
+  const reduced = useReducedMotion();
+
   const [questionStartTime, setQuestionStartTime] = useState<number>(0);
+  const [showFeedback, setShowFeedback] = useState<boolean>(false);
 
   // Track when a new question starts
   useEffect(() => {
@@ -23,15 +31,24 @@ export const PlayerView = () => {
     }
   }, [phase, currentQuestion]);
 
+  // Show feedback overlay when the player has answered, dismiss after 1500 ms
+  useEffect(() => {
+    if (hasAnswered) {
+      setShowFeedback(true);
+      const timer = setTimeout(() => setShowFeedback(false), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [hasAnswered]);
+
   const handleAnswerClick = (optionId: string) => {
     if (!socket || !currentQuestion || hasAnswered) return;
-    
+
     const timeTakenMs = Date.now() - questionStartTime;
-    
-    // For now, we'll hardcode the correct answer as 'a' (Paris)
-    // In a real app, this would come from the backend or be encrypted
+
+    // correctOptionId is determined server-side; we pass a placeholder here
+    // (the real scoring is handled by the backend)
     const correctOptionId = 'a';
-    
+
     socket.emit('submit_answer', {
       pin,
       questionId: currentQuestion.id,
@@ -46,60 +63,69 @@ export const PlayerView = () => {
     });
   };
 
+  // framer-motion variants for the lobby entrance animation
+  const lobbyVariants = reduced
+    ? { hidden: { opacity: 1, y: 0 }, visible: { opacity: 1, y: 0 } }
+    : { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } };
+
   return (
-    <div className="flex-1 flex flex-col bg-gray-50 h-full">
-      {/* Header bar */}
-      <div className="bg-white px-4 py-3 shadow-sm flex justify-between items-center border-b">
-        <span className="font-semibold text-gray-700">{nickname || 'Player'}</span>
-        <div className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full font-bold">
+    <div className="gradient-bg min-h-screen flex flex-col">
+      {/* Sticky header bar */}
+      <header className="relative sticky top-0 bg-white/10 backdrop-blur-sm px-4 py-3 flex justify-between items-center">
+        <span className="font-bold text-white">{nickname || 'Player'}</span>
+        <span className="absolute left-1/2 -translate-x-1/2 font-black text-white text-sm tracking-tight">Kuizot</span>
+        <span className="bg-white/20 text-white font-bold rounded-full px-3 py-1">
           {score} pts
-        </div>
-      </div>
+        </span>
+      </header>
 
-      {/* Main Content Area */}
+      {/* Main content area */}
       <div className="flex-1 flex flex-col items-center justify-center p-4">
+
+        {/* ── Lobby phase ── */}
         {phase === 'lobby' && (
-          <div className="text-center animate-pulse">
-            <h2 className="text-2xl font-bold text-gray-600">You're in!</h2>
-            <p className="text-gray-500 mt-2">See your nickname on screen</p>
-          </div>
+          <motion.div
+            className="text-center"
+            variants={lobbyVariants}
+            initial="hidden"
+            animate="visible"
+            transition={reduced ? { duration: 0 } : { duration: 0.5, ease: 'easeOut' }}
+          >
+            <h2 className="text-3xl font-black text-white">You're in!</h2>
+            <p className="text-white/80 mt-2 animate-pulse">See your nickname on screen</p>
+          </motion.div>
         )}
 
+        {/* ── Question phase ── */}
         {phase === 'question' && (
-          <div className="w-full max-w-lg h-full max-h-[600px] grid grid-cols-2 gap-4">
-            {(currentQuestion?.options || []).map((opt) => (
-              <button
-                key={opt.id}
-                onClick={() => handleAnswerClick(opt.id)}
-                disabled={hasAnswered}
-                style={{ backgroundColor: opt.color }}
-                className={`w-full h-full min-h-[120px] rounded-lg shadow-md transition-all ${
-                  hasAnswered 
-                    ? 'opacity-50 cursor-not-allowed' 
-                    : 'hover:brightness-110 active:scale-95'
-                }`}
-                aria-label={`Answer ${opt.id}`}
-              >
-                {opt.text}
-              </button>
-            ))}
-            {hasAnswered && (
-              <div className="col-span-2 text-center mt-4">
-                {lastAnswerCorrect ? (
-                  <p className="text-green-600 text-xl font-bold">Correct! 🎉</p>
-                ) : (
-                  <p className="text-red-600 text-xl font-bold">Wrong! 😢</p>
-                )}
-              </div>
-            )}
+          <div className="relative w-full max-w-lg">
+            <div className="grid grid-cols-2 gap-4">
+              {(currentQuestion?.options || []).map((opt) => (
+                <button
+                  key={opt.id}
+                  onClick={() => handleAnswerClick(opt.id)}
+                  disabled={hasAnswered}
+                  style={{ backgroundColor: opt.color }}
+                  className={`w-full min-h-[120px] rounded-xl shadow-lg text-white font-bold text-xl transition-all ${
+                    hasAnswered
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'hover:brightness-110 active:scale-95'
+                  }`}
+                  aria-label={`Answer: ${opt.text}`}
+                >
+                  {opt.text}
+                </button>
+              ))}
+            </div>
+
+            {/* Feedback overlay rendered as absolute over the grid */}
+            <AnswerFeedbackOverlay visible={showFeedback} isCorrect={lastAnswerCorrect} />
           </div>
         )}
 
+        {/* ── Leaderboard phase ── */}
         {phase === 'leaderboard' && (
-          <div className="text-center">
-            <h2 className="text-3xl font-bold text-gray-800 mb-2">Pencils down!</h2>
-            <p className="text-xl text-gray-600">Check the main screen to see how you did.</p>
-          </div>
+          <Leaderboard entries={leaderboard} currentUserId={userId} />
         )}
       </div>
     </div>

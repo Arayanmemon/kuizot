@@ -12,16 +12,16 @@ export const JoinPage = () => {
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
+
     if (!inputPin || !inputNickname) return;
-    
+
     if (!socket || !isConnected) {
       setError('Not connected to server. Please wait...');
       return;
     }
 
     const userId = `user_${Math.random().toString(36).substring(2, 11)}`;
-    
+
     // Emit join session event to server
     socket.emit('join_session', {
       pin: inputPin,
@@ -42,9 +42,10 @@ export const JoinPage = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center bg-purple-600 p-4">
-      <div className="w-full max-w-sm bg-white rounded-lg shadow-xl p-8">
-        <h1 className="text-3xl font-bold text-center text-gray-800 mb-6">Join Game</h1>
+    <div className="gradient-bg min-h-screen flex flex-col items-center justify-center p-4">
+      <h1 className="font-black text-white text-4xl mb-8 tracking-tight">Kuizot</h1>
+
+      <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-8">
         <form onSubmit={handleJoin} className="flex flex-col gap-4">
           <input
             type="text"
@@ -52,7 +53,7 @@ export const JoinPage = () => {
             value={inputPin}
             onChange={(e) => setInputPin(e.target.value.toUpperCase())}
             maxLength={6}
-            className="text-center text-2xl p-3 border-2 border-gray-300 rounded focus:border-purple-500 focus:outline-none"
+            className="w-full text-center text-2xl p-3 border-2 border-gray-300 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none transition-colors"
             required
           />
           <input
@@ -61,19 +62,19 @@ export const JoinPage = () => {
             value={inputNickname}
             onChange={(e) => setInputNickname(e.target.value)}
             maxLength={15}
-            className="text-center text-xl p-3 border-2 border-gray-300 rounded focus:border-purple-500 focus:outline-none"
+            className="w-full text-center text-xl p-3 border-2 border-gray-300 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none transition-colors"
             required
           />
           <button
             type="submit"
             disabled={!isConnected}
-            className="w-full bg-gray-900 text-white text-xl font-bold py-4 rounded hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-gray-900 text-white text-xl font-bold py-4 rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isConnected ? 'Enter' : 'Connecting...'}
           </button>
-          
+
           {error && (
-            <p className="text-red-500 text-center text-sm">{error}</p>
+            <p className="text-red-400 text-center text-sm mt-1">{error}</p>
           )}
         </form>
       </div>

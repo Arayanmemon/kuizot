@@ -10,7 +10,6 @@ import { HostDashboard } from './pages/HostDashboard';
 function App() {
   const { 
     setSocket, 
-    isConnected, 
     setConnected, 
     setPhase, 
     setCurrentQuestion, 
@@ -112,14 +111,7 @@ function App() {
 
   return (
     <BrowserRouter>
-      <div className="min-h-screen font-sans text-gray-900 bg-gray-100 flex flex-col">
-        {/* Connection Status Banner (Dev Only) */}
-        {!isConnected && (
-          <div className="bg-red-500 text-white text-center text-sm py-1">
-            Connecting to Server...
-          </div>
-        )}
-
+      <div className="min-h-screen font-sans text-gray-900 flex flex-col">
         <Routes>
           <Route path="/" element={<JoinPage />} />
           <Route path="/player" element={<PlayerView />} />

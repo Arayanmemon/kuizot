@@ -1,5 +1,21 @@
 @import "tailwindcss";
 
-body {
-  background-color: #f3f4f6; /* bg-gray-100 */
+@theme {
+  --color-brand-gradient-from: #ec4899;   /* pink-500  */
+  --color-brand-gradient-via:  #9333ea;   /* purple-600 */
+  --color-brand-gradient-to:   #4338ca;   /* indigo-700 */
+}
+
+/* Shared gradient utility applied to all page roots */
+.gradient-bg {
+  background: linear-gradient(
+    135deg,
+    var(--color-brand-gradient-from),
+    var(--color-brand-gradient-via),
+    var(--color-brand-gradient-to)
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse { animation: none; }
 }
