@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { useAuthStore } from '../store/authStore';
 import { Leaderboard } from '../components/Leaderboard';
 import api from '../lib/api';
+import { useAudio } from '../hooks/useAudio';
 
 interface Quiz {
   id: string;
@@ -39,6 +40,23 @@ export const HostDashboard = () => {
   // Track question progress
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
+
+  // Countdown timer
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [timerExpired, setTimerExpired] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Audio hooks for timer music and leaderboard music
+  const timerAudio = useAudio('/sounds/timer-music.mp3', {
+    loop: true,
+    volume: 0.3,
+    respectReducedMotion: true,
+  });
+  const leaderboardAudio = useAudio('/sounds/leaderboard-music.mp3', {
+    loop: false,
+    volume: 0.4,
+    respectReducedMotion: true,
+  });
 
   // Fetch quizzes for the selector
   useEffect(() => {
@@ -87,6 +105,7 @@ export const HostDashboard = () => {
     if (!socket || !pin) return;
 
     setAnswerCount(0);
+    setTimerExpired(false);
     socket.off('answer_received'); // prevent listener accumulation
     socket.on('answer_received', () => {
       setAnswerCount((prev) => prev + 1);
@@ -96,6 +115,47 @@ export const HostDashboard = () => {
     setCurrentQuestionIndex(index + 1);
     setPhase('question');
   };
+
+  // Start/reset the countdown whenever phase changes to 'question' and we have a timeLimit
+  useEffect(() => {
+    if (phase === 'question' && currentQuestion) {
+      const limit = currentQuestion.timeLimit; // seconds
+      setTimeLeft(limit);
+      setTimerExpired(false);
+
+      // Start timer music
+      timerAudio.play();
+
+      if (timerRef.current) clearInterval(timerRef.current);
+
+      timerRef.current = setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(timerRef.current!);
+            setTimerExpired(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      // Stop timer music when leaving question phase
+      timerAudio.stop();
+    }
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [phase, currentQuestion?.id]);
+
+  // Play leaderboard music when entering leaderboard phase
+  useEffect(() => {
+    if (phase === 'leaderboard') {
+      leaderboardAudio.play();
+    } else {
+      leaderboardAudio.stop();
+    }
+  }, [phase]);
 
   // Host clicks "Start" in the lobby for the first question
   const startFirstQuestion = () => fireQuestion(0);
@@ -234,9 +294,11 @@ export const HostDashboard = () => {
   // ─── Question Phase ───────────────────────────────────────────────────────
   if (phase === 'question') {
     const opts = currentQuestion?.options ?? [];
-    // currentQuestionIndex was already incremented when fireQuestion was called,
-    // so the displayed number = currentQuestionIndex (1-based)
     const displayedQuestionNum = currentQuestionIndex;
+    const totalTime = currentQuestion?.timeLimit ?? 1;
+    const timerPercent = Math.max(0, (timeLeft / totalTime) * 100);
+    const timerColor =
+      timerPercent > 50 ? '#22c55e' : timerPercent > 25 ? '#eab308' : '#ef4444';
 
     return (
       <div className="gradient-bg min-h-screen flex flex-col p-8">
@@ -245,6 +307,22 @@ export const HostDashboard = () => {
           <span className="bg-white/20 text-white font-bold rounded-full px-4 py-1.5 text-sm">
             Q {displayedQuestionNum} / {totalQuestions}
           </span>
+        </div>
+
+        {/* Timer bar */}
+        <div className="flex items-center gap-3 mb-4 max-w-4xl w-full mx-auto">
+          <span
+            className="text-3xl font-black w-12 text-center tabular-nums"
+            style={{ color: timerColor }}
+          >
+            {timeLeft}
+          </span>
+          <div className="flex-1 h-4 bg-white/20 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-1000 ease-linear"
+              style={{ width: `${timerPercent}%`, backgroundColor: timerColor }}
+            />
+          </div>
         </div>
 
         <h2 className="text-4xl font-black text-white text-center mb-6">
@@ -280,7 +358,7 @@ export const HostDashboard = () => {
             onClick={showLeaderboard}
             className="bg-white/20 text-white font-bold py-3 px-8 rounded-2xl hover:bg-white/30 transition-colors"
           >
-            Skip / Show Results
+            {timerExpired ? 'Show Results' : 'Skip / Show Results'}
           </button>
         </div>
       </div>
