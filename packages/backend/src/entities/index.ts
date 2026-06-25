@@ -3,3 +3,8 @@ export * from './organization.entity';
 export * from './quiz.entity';
 export * from './question.entity';
 export * from './option.entity';
+export * from './game-session.entity';
+export * from './audit-log.entity';
+export * from './subscription.entity';
+export * from './payment-request.entity';
+export * from './credit-transaction.entity';

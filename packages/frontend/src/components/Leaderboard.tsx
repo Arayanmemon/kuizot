@@ -6,6 +6,7 @@ interface LeaderboardProps {
   entries: LeaderboardEntry[];
   currentUserId?: string;
   onBackToLobby?: () => void;
+  onNextQuestion?: () => void;
 }
 
 // Medals indexed by rank (0 = 1st place, 1 = 2nd place, 2 = 3rd place)
@@ -46,7 +47,7 @@ const cardVariants = (reduced: boolean) => ({
   }),
 });
 
-export function Leaderboard({ entries, currentUserId, onBackToLobby }: LeaderboardProps) {
+export function Leaderboard({ entries, currentUserId, onBackToLobby, onNextQuestion }: LeaderboardProps) {
   const reduced = useReducedMotion();
 
   const top3 = entries.slice(0, 3);
@@ -148,7 +149,15 @@ export function Leaderboard({ entries, currentUserId, onBackToLobby }: Leaderboa
         </ol>
       )}
 
-      {/* Back to Lobby button */}
+      {/* Action button: Next Question or Back to Lobby */}
+      {onNextQuestion && (
+        <button
+          onClick={onNextQuestion}
+          className="bg-white text-purple-700 font-black text-lg rounded-2xl shadow-xl px-10 py-4 hover:bg-white/90 transition-colors"
+        >
+          Next Question →
+        </button>
+      )}
       {onBackToLobby && (
         <button
           onClick={onBackToLobby}

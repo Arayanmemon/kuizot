@@ -16,6 +16,12 @@ export class Quiz {
   @ManyToOne(() => User, (user) => user.quizzes)
   creator: User;
 
+  @Column({ default: false })
+  isPublic: boolean;
+
+  @Column({ type: 'int', default: 0 })
+  playCount: number;
+
   @OneToMany(() => Question, (question) => question.quiz, { cascade: true })
   questions: Question[];
 

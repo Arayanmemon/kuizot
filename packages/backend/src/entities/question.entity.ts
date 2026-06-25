@@ -19,6 +19,9 @@ export class Question {
   @Column({ type: 'enum', enum: ['classic', 'accuracy'], default: 'classic' })
   scoringMode: 'classic' | 'accuracy';
 
+  @Column({ type: 'text', nullable: true })
+  imageUrl: string | null;
+
   @ManyToOne(() => Quiz, (quiz) => quiz.questions, { onDelete: 'CASCADE' })
   quiz: Quiz;
 

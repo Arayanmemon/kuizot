@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { Navigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { AnswerFeedbackOverlay } from '../components/AnswerFeedbackOverlay';
 import { Leaderboard } from '../components/Leaderboard';
@@ -24,6 +25,11 @@ export const PlayerView = () => {
   const [questionStartTime, setQuestionStartTime] = useState<number>(0);
   const [showFeedback, setShowFeedback] = useState<boolean>(false);
 
+  // Guard: no active game session → send to join page
+  if (!pin) {
+    return <Navigate to="/" replace />;
+  }
+
   // Track when a new question starts
   useEffect(() => {
     if (phase === 'question' && currentQuestion) {
@@ -45,10 +51,6 @@ export const PlayerView = () => {
 
     const timeTakenMs = Date.now() - questionStartTime;
 
-    // correctOptionId is determined server-side; we pass a placeholder here
-    // (the real scoring is handled by the backend)
-    const correctOptionId = 'a';
-
     socket.emit('submit_answer', {
       pin,
       questionId: currentQuestion.id,
@@ -56,10 +58,8 @@ export const PlayerView = () => {
       nickname,
       optionId,
       timeTakenMs,
-      scoringMode: currentQuestion.scoringMode || 'classic',
-      maxPoints: currentQuestion.maxPoints || 1000,
-      timeLimit: currentQuestion.timeLimit,
-      correctOptionId,
+      // correctOptionId, scoringMode, maxPoints, timeLimit are validated
+      // server-side from the DB — not sent from client
     });
   };
 

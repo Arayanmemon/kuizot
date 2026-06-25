@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 
 interface Props {
@@ -9,8 +9,8 @@ interface Props {
 export const AnswerFeedbackOverlay = ({ visible, isCorrect }: Props) => {
   const reduced = useReducedMotion();
 
-  const variants = reduced
-    ? { hidden: { opacity: 1 }, visible: { opacity: 1 } }
+  const variants: Variants = reduced
+    ? { hidden: { opacity: 1 }, visible: { opacity: 1 }, exit: {} }
     : {
         hidden: { opacity: 0, scale: 0.5 },
         visible: { opacity: 1, scale: 1 },

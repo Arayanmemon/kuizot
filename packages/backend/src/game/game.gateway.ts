@@ -10,6 +10,9 @@ import { Logger } from '@nestjs/common';
 import { SessionService } from './services/session.service';
 import { LeaderboardService } from './services/leaderboard.service';
 import { ScoringService } from './services/scoring.service';
+import { QuestionsService } from '../questions/questions.service';
+import { SessionHistoryService } from './services/session-history.service';
+import { BillingService } from '../billing/billing.service';
 
 interface JoinSessionPayload {
   pin: string;
@@ -19,16 +22,12 @@ interface JoinSessionPayload {
 
 interface CreateSessionPayload {
   hostId: string;
+  quizId: string;
 }
 
 interface StartQuestionPayload {
   pin: string;
-  questionId: string;
-  questionText: string;
-  options: { id: string; text: string; color: string }[];
-  timeLimit: number;
-  scoringMode: 'classic' | 'accuracy';
-  maxPoints: number;
+  questionIndex: number; // 0-based index
 }
 
 interface SubmitAnswerPayload {
@@ -38,10 +37,8 @@ interface SubmitAnswerPayload {
   nickname: string;
   optionId: string;
   timeTakenMs: number;
-  scoringMode: 'classic' | 'accuracy';
-  maxPoints: number;
-  timeLimit: number;
-  correctOptionId: string;
+  // scoringMode, maxPoints, timeLimit, correctOptionId are intentionally NOT
+  // accepted from the client — all correctness logic runs server-side using the DB
 }
 
 @WebSocketGateway({
@@ -63,6 +60,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly sessionService: SessionService,
     private readonly leaderboardService: LeaderboardService,
     private readonly scoringService: ScoringService,
+    private readonly questionsService: QuestionsService,
+    private readonly sessionHistoryService: SessionHistoryService,
+    private readonly billingService: BillingService,
   ) {}
 
   handleConnection(client: Socket) {
@@ -88,10 +88,17 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('create_session')
   async handleCreateSession(client: Socket, payload: CreateSessionPayload) {
-    const { hostId } = payload;
+    const { hostId, quizId } = payload;
     
     try {
-      const pin = await this.sessionService.createSession(hostId);
+      // Check billing limit before creating session
+      const billingCheck = await this.billingService.checkLimit(hostId, 'session_start');
+      if (!billingCheck.allowed) {
+        client.emit('session_error', { message: billingCheck.reason });
+        return;
+      }
+
+      const pin = await this.sessionService.createSession(hostId, quizId);
       
       // Join the host room for this session
       client.join(`session:${pin}:host`);
@@ -127,6 +134,13 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return;
       }
       
+      // Check billing limit for player join
+      const billingCheck = await this.billingService.checkLimit(sessionData.hostId, 'player_join');
+      if (!billingCheck.allowed) {
+        client.emit('join_error', { message: billingCheck.reason });
+        return;
+      }
+
       // Join the session room
       client.join(`session:${pin}`);
       
@@ -147,24 +161,34 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('start_question')
   async handleStartQuestion(client: Socket, payload: StartQuestionPayload) {
-    const { pin, questionId, questionText, options, timeLimit, scoringMode, maxPoints } = payload;
+    const { pin, questionIndex } = payload;
     
     try {
+      // Load session to get quiz_id
+      const session = await this.sessionService.getSession(pin);
+      if (!session) {
+        client.emit('error', { message: 'Session not found' });
+        return;
+      }
+
+      // Load question from DB by index
+      const question = await this.questionsService.getQuestionByIndex(session.quizId, questionIndex);
+
       // Update session status and current question
       await this.sessionService.updateSessionStatus(pin, 'active');
-      await this.sessionService.setCurrentQuestion(pin, questionId);
+      await this.sessionService.setCurrentQuestion(pin, question.id);
       
       // Broadcast question to all players in the session
       this.server.to(`session:${pin}`).emit('question_started', {
-        questionId,
-        questionText,
-        options,
-        timeLimit,
-        scoringMode,
-        maxPoints,
+        questionId: question.id,
+        questionText: question.text,
+        options: question.options.map((o) => ({ id: o.id, text: o.text, color: o.color })),
+        timeLimit: question.timeLimit,
+        scoringMode: question.scoringMode,
+        maxPoints: question.points,
       });
       
-      this.logger.log(`Question ${questionId} started in session ${pin}`);
+      this.logger.log(`Question ${question.id} (index ${questionIndex}) started in session ${pin}`);
     } catch (error) {
       this.logger.error(`Failed to start question: ${error.message}`);
       client.emit('error', { message: 'Failed to start question' });
@@ -173,7 +197,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('submit_answer')
   async handleSubmitAnswer(client: Socket, payload: SubmitAnswerPayload) {
-    const { pin, questionId, userId, nickname, optionId, timeTakenMs, scoringMode, maxPoints, timeLimit, correctOptionId } = payload;
+    const { pin, questionId, userId, nickname, optionId, timeTakenMs } = payload;
     
     try {
       // Check for idempotency (prevent double submissions)
@@ -183,6 +207,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         client.emit('answer_error', { message: 'Answer already submitted' });
         return;
       }
+
+      // Load the question from DB to get the correct option — never trust the client
+      const question = await this.questionsService.getQuestionById(questionId);
+      const correctOption = question.options.find((o) => o.isCorrect);
+      const correctOptionId = correctOption?.id ?? '';
       
       // Check if answer is correct
       const isCorrect = optionId === correctOptionId;
@@ -191,10 +220,10 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const points = await this.scoringService.calculateScore(
         pin,
         userId,
-        scoringMode,
+        question.scoringMode,
         isCorrect,
-        maxPoints,
-        timeLimit,
+        question.points,
+        question.timeLimit * 1000, // convert seconds → ms
         timeTakenMs,
       );
       
@@ -249,6 +278,17 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     
     try {
       await this.sessionService.updateSessionStatus(pin, 'finished');
+
+      // Get the final leaderboard (all players)
+      const leaderboard = await this.leaderboardService.getTopPlayers(pin, 100);
+
+      // Get session data for hostId and quizId
+      const session = await this.sessionService.getSession(pin);
+      if (session) {
+        const { hostId, quizId } = session;
+        const playerCount = leaderboard.length;
+        await this.sessionHistoryService.saveSession(pin, quizId, hostId, playerCount, leaderboard);
+      }
       
       // Notify all players that the game has ended
       this.server.to(`session:${pin}`).emit('game_ended', { pin });

@@ -14,13 +14,14 @@ export class SessionService {
   /**
    * Initializes a new game session and maps it to a unique PIN.
    */
-  async createSession(hostId: string): Promise<string> {
+  async createSession(hostId: string, quizId: string): Promise<string> {
     const pin = await this.pinService.createUniquePin();
     const client = this.redisService.getClient();
 
     // Map the session metadata using HSET
     await client.hset(`session:${pin}`, {
       host_id: hostId,
+      quiz_id: quizId,
       status: 'waiting', // waiting, active, finished
       current_question_id: '',
     });
@@ -35,7 +36,7 @@ export class SessionService {
   /**
    * Retrieves session metadata.
    */
-  async getSession(pin: string): Promise<{ hostId: string; status: string; currentQuestionId: string } | null> {
+  async getSession(pin: string): Promise<{ hostId: string; quizId: string; status: string; currentQuestionId: string } | null> {
     const client = this.redisService.getClient();
     const data = await client.hgetall(`session:${pin}`);
     
@@ -45,6 +46,7 @@ export class SessionService {
     
     return {
       hostId: data.host_id,
+      quizId: data.quiz_id,
       status: data.status,
       currentQuestionId: data.current_question_id,
     };
