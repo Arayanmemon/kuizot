@@ -13,6 +13,7 @@ import { QuizzesModule } from './quizzes/quizzes.module';
 import { QuestionsModule } from './questions/questions.module';
 import { AdminModule } from './admin/admin.module';
 import { BillingModule } from './billing/billing.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { BillingModule } from './billing/billing.module';
     QuestionsModule,
     AdminModule,
     BillingModule,
+    AnalyticsModule,
     ScheduleModule.forRoot(),
   ],
   controllers: [AppController],

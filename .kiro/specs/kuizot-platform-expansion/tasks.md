@@ -211,20 +211,20 @@ Five-phase implementation following the plan in `ADMIN_PANEL_PLAN.md`. Phases ar
 
 ### Phase 5 — Analytics
 
-- [ ] 16. Implement analytics backend
-  - [ ] 16.1 Create `QuestionStat` entity in `src/entities/question-stat.entity.ts` — fields: `id`, `gameSession` (ManyToOne), `question` (ManyToOne), `correctCount` int, `totalAnswers` int, `avgTimeTakenMs` int, `createdAt`
+- [x] 16. Implement analytics backend
+  - [x] 16.1 Create `QuestionStat` entity in `src/entities/question-stat.entity.ts` — fields: `id`, `gameSession` (ManyToOne), `question` (ManyToOne), `correctCount` int, `totalAnswers` int, `avgTimeTakenMs` int, `createdAt`
     - _Requirements: 5.1_
-  - [ ] 16.2 Update `GameGateway.handleSubmitAnswer` to additionally write per-answer detail to Redis (`HSET session:<pin>:question:<qId>:detail:<userId> correct <0|1> timeTakenMs <ms>`) for analytics aggregation
+  - [x] 16.2 Update `GameGateway.handleSubmitAnswer` to additionally write per-answer detail to Redis (`HSET session:<pin>:question:<qId>:detail:<userId> correct <0|1> timeTakenMs <ms>`) for analytics aggregation
     - _Requirements: 5.2_
-  - [ ] 16.3 Create `SessionAnalyticsService` in `src/analytics/` — reads answer detail from Redis after `end_game`, computes per-question correctCount/totalAnswers/avgTimeTakenMs, bulk-inserts `QuestionStat` rows
+  - [x] 16.3 Create `SessionAnalyticsService` in `src/analytics/` — reads answer detail from Redis after `end_game`, computes per-question correctCount/totalAnswers/avgTimeTakenMs, bulk-inserts `QuestionStat` rows
     - _Requirements: 5.2_
-  - [ ] 16.4 Create `AnalyticsModule` with `AnalyticsController` exposing `GET /analytics/quiz/:id` (quiz sessions + per-question stats, ownership-checked), `GET /analytics/overview` (owner totals), and `GET /admin/analytics` (platform-wide DAU/MAU/tier counts, admin-only)
+  - [x] 16.4 Create `AnalyticsModule` with `AnalyticsController` exposing `GET /analytics/quiz/:id` (quiz sessions + per-question stats, ownership-checked), `GET /analytics/overview` (owner totals), and `GET /admin/analytics` (platform-wide DAU/MAU/tier counts, admin-only)
     - _Requirements: 5.3_
 
-- [ ] 17. Build analytics frontend pages
-  - [ ] 17.1 Create `OwnerAnalyticsPage` at `/dashboard/quizzes/:id/analytics` — sessions table and Recharts `<BarChart>` of per-question correctness percentages
+- [x] 17. Build analytics frontend pages
+  - [x] 17.1 Create `OwnerAnalyticsPage` at `/dashboard/quizzes/:id/analytics` — sessions table and Recharts `<BarChart>` of per-question correctness percentages
     - _Requirements: 5.4_
-  - [ ] 17.2 Enhance `admin/DashboardPage.tsx` with: DAU `<LineChart>` (30 days), tier distribution `<PieChart>`, top quizzes `<BarChart>` — data from `GET /admin/analytics`
+  - [x] 17.2 Enhance `admin/DashboardPage.tsx` with: DAU `<LineChart>` (30 days), tier distribution `<PieChart>`, top quizzes `<BarChart>` — data from `GET /admin/analytics`
     - _Requirements: 5.5_
 
 - [ ] 18. Final Checkpoint — Ensure all tests pass, ask the user if questions arise.

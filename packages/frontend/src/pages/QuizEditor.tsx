@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import { FeatureGate } from '../components/FeatureGate';
 import { useBilling } from '../hooks/useBilling';
+import { QuestionMedia } from '../components/QuestionMedia';
 
 /* ─── Types ───────────────────────────────────────────────────────────────── */
 
@@ -361,19 +362,25 @@ const QuestionInlineEditor = ({ question, tier, onSaved, onCancel }: QuestionInl
         />
       </div>
 
-      {/* Image URL (pro+ feature) */}
+      {/* Media URL — images, GIFs, and YouTube links */}
       <FeatureGate feature="image_questions" tier={tier}>
         <div>
           <label className="block text-white/70 text-xs font-semibold mb-1 uppercase tracking-wide">
-            Image URL (optional)
+            Media URL — Image, GIF or YouTube link (optional)
           </label>
           <input
             type="url"
             value={imageUrl}
             onChange={(e) => setImageUrl(e.target.value)}
             className="w-full bg-white/10 border border-white/30 rounded-xl p-3 text-white placeholder-white/40 focus:outline-none focus:border-white/60"
-            placeholder="https://example.com/image.png"
+            placeholder="https://example.com/image.gif  or  https://youtube.com/watch?v=..."
           />
+          {/* Live preview */}
+          {imageUrl && (
+            <div className="mt-2">
+              <QuestionMedia url={imageUrl} className="max-h-48" />
+            </div>
+          )}
         </div>
       </FeatureGate>
 

@@ -5,11 +5,13 @@ import { useGameStore } from '../store/gameStore';
 import { AnswerFeedbackOverlay } from '../components/AnswerFeedbackOverlay';
 import { Leaderboard } from '../components/Leaderboard';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { QuestionMedia } from '../components/QuestionMedia';
 
 export const PlayerView = () => {
   const {
     phase,
     currentQuestion,
+    questionStats,
     score,
     nickname,
     pin,
@@ -18,12 +20,12 @@ export const PlayerView = () => {
     hasAnswered,
     lastAnswerCorrect,
     leaderboard,
+    previousLeaderboard,
   } = useGameStore();
 
   const reduced = useReducedMotion();
 
   const [questionStartTime, setQuestionStartTime] = useState<number>(0);
-  const [showFeedback, setShowFeedback] = useState<boolean>(false);
 
   // Countdown timer state
   const [timeLeft, setTimeLeft] = useState<number>(0);
@@ -69,11 +71,8 @@ export const PlayerView = () => {
   // Show feedback overlay when the player has answered, dismiss after 1500 ms
   useEffect(() => {
     if (hasAnswered) {
-      setShowFeedback(true);
       // Stop the timer — no point counting down after answering
       if (timerRef.current) clearInterval(timerRef.current);
-      const timer = setTimeout(() => setShowFeedback(false), 1500);
-      return () => clearTimeout(timer);
     }
   }, [hasAnswered]);
 
@@ -169,6 +168,12 @@ export const PlayerView = () => {
 
             {/* Answer grid */}
             <div className="relative">
+              {/* Question media (image, GIF, or YouTube) */}
+              {currentQuestion?.imageUrl && (
+                <div className="mb-3">
+                  <QuestionMedia url={currentQuestion.imageUrl} />
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 {(currentQuestion?.options || []).map((opt) => (
                   <button
@@ -187,17 +192,111 @@ export const PlayerView = () => {
                   </button>
                 ))}
               </div>
-
-              {/* Feedback overlay rendered as absolute over the grid */}
-              <AnswerFeedbackOverlay visible={showFeedback} isCorrect={lastAnswerCorrect} />
             </div>
           </div>
         )}
 
+        {/* ── Waiting phase — answered, waiting for host to reveal stats ── */}
+        {phase === 'waiting' && (() => {
+          const timeTaken = useGameStore.getState().lastTimeTakenMs;
+          const speedMsg =
+            timeTaken < 2000 ? ['⚡ Lightning fast!', '🚀 Blazing speed!', '🎯 Quick draw!'][Math.floor(Math.random() * 3)]
+            : timeTaken < 5000 ? ['👍 Nice and quick!', '✅ Good timing!', '💨 Pretty speedy!'][Math.floor(Math.random() * 3)]
+            : timeTaken < 10000 ? ['🤔 Taking your time…', '⏱ Decent pace!', '📝 Thoughtful!'][Math.floor(Math.random() * 3)]
+            : ['🐢 Cutting it close…', '😅 Better be quick next time!', '⌛ Just made it!'][Math.floor(Math.random() * 3)];
+
+          return (
+            <div className="text-center flex flex-col items-center gap-5">
+              <div className="text-5xl animate-bounce">⏳</div>
+              <h2 className="text-2xl font-black text-white">Answer locked in!</h2>
+              <p className="text-white/70 text-lg">{speedMsg}</p>
+              <p className="text-white/40 text-sm animate-pulse">Waiting for results…</p>
+            </div>
+          );
+        })()}
+
+        {/* ── Stats phase — host revealed answer stats, show player result ── */}
+        {phase === 'stats' && (() => {
+          const isCorrect = lastAnswerCorrect;
+          return (
+            <div className="text-center flex flex-col items-center gap-5 px-4">
+              {isCorrect === null ? (
+                // Didn't answer in time
+                <div className="flex flex-col items-center gap-3">
+                  <span className="text-5xl">⏱</span>
+                  <h2 className="text-2xl font-black text-white">Time ran out!</h2>
+                  <p className="text-white/60">No points this round</p>
+                </div>
+              ) : isCorrect ? (
+                <div className="flex flex-col items-center gap-3">
+                  <span className="text-6xl">✅</span>
+                  <h2 className="text-3xl font-black text-white">Correct!</h2>
+                  <p className="text-white/70 text-lg">Great job! Keep it up 🎉</p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-3">
+                  <span className="text-6xl">❌</span>
+                  <h2 className="text-3xl font-black text-white">Wrong answer</h2>
+                  <p className="text-white/70 text-lg">Better luck next question!</p>
+                </div>
+              )}
+              <p className="text-white/40 text-sm animate-pulse">Waiting for leaderboard…</p>
+            </div>
+          );
+        })()}
+
         {/* ── Leaderboard phase ── */}
-        {phase === 'leaderboard' && (
-          <Leaderboard entries={leaderboard} currentUserId={userId} />
-        )}
+        {phase === 'leaderboard' && (() => {
+          const currentPos = leaderboard.findIndex((e) => e.userId === userId) + 1;
+          const prevPos = previousLeaderboard.findIndex((e) => e.userId === userId) + 1;
+          const rankChange = prevPos > 0 && currentPos > 0 ? prevPos - currentPos : 0; // positive = moved up
+
+          return (
+            <div className="w-full flex flex-col items-center gap-4">
+              {/* Rank change banner */}
+              {rankChange !== 0 && (
+                <div className={`rounded-xl px-5 py-2 text-sm font-bold ${
+                  rankChange > 0
+                    ? 'bg-green-500/30 text-green-200 border border-green-400/40'
+                    : 'bg-red-500/30 text-red-200 border border-red-400/40'
+                }`}>
+                  {rankChange > 0 ? `⬆ Moved up ${rankChange} ${rankChange === 1 ? 'place' : 'places'}!` : `⬇ Dropped ${Math.abs(rankChange)} ${Math.abs(rankChange) === 1 ? 'place' : 'places'}`}
+                </div>
+              )}
+              {currentPos > 0 && (
+                <p className="text-white/60 text-sm font-semibold">
+                  You're #{currentPos} of {leaderboard.length}
+                </p>
+              )}
+              <Leaderboard entries={leaderboard} currentUserId={userId} />
+            </div>
+          );
+        })()}
+
+        {/* ── Finished phase — game over, show final position ── */}
+        {phase === 'finished' && (() => {
+          const position = leaderboard.findIndex((e) => e.userId === userId) + 1;
+          const totalPlayers = leaderboard.length;
+          const myEntry = leaderboard.find((e) => e.userId === userId);
+          const medal = position === 1 ? '🥇' : position === 2 ? '🥈' : position === 3 ? '🥉' : null;
+
+          return (
+            <div className="text-center flex flex-col items-center gap-5 px-4 max-w-sm">
+              {medal && <span className="text-7xl">{medal}</span>}
+              <h2 className="text-4xl font-black text-white">
+                {position > 0 ? `#${position}` : '—'}
+                <span className="text-white/50 text-2xl font-bold"> / {totalPlayers}</span>
+              </h2>
+              <p className="text-white/80 text-xl font-bold">
+                {myEntry ? `${myEntry.score} pts` : `${score} pts`}
+              </p>
+              {position === 1 && <p className="text-yellow-300 font-bold text-lg">🏆 You won!</p>}
+              <p className="text-white/50 text-sm animate-pulse mt-2">
+                Waiting for host to end the session…
+              </p>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

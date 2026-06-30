@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { GameGateway } from './game.gateway';
 import { PinService } from './services/pin.service';
@@ -10,12 +10,14 @@ import { QuestionsModule } from '../questions/questions.module';
 import { GameSession } from '../entities/game-session.entity';
 import { Quiz } from '../entities/quiz.entity';
 import { BillingModule } from '../billing/billing.module';
+import { AnalyticsModule } from '../analytics/analytics.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([GameSession, Quiz]),
     QuestionsModule,
     BillingModule,
+    forwardRef(() => AnalyticsModule),
   ],
   providers: [
     GameGateway,

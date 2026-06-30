@@ -2,11 +2,27 @@ import { create } from 'zustand';
 import { Socket } from 'socket.io-client';
 
 export type GameRole = 'host' | 'player' | null;
-export type GamePhase = 'lobby' | 'question' | 'leaderboard';
+export type GamePhase = 'lobby' | 'question' | 'waiting' | 'stats' | 'leaderboard' | 'finished';
 
 export interface LeaderboardEntry {
   userId: string;
   score: number;
+}
+
+export interface OptionStat {
+  id: string;
+  text: string;
+  color: string;
+  isCorrect: boolean;
+  count: number;
+  percent: number;
+}
+
+export interface QuestionStatsData {
+  questionText: string;
+  options: OptionStat[];
+  totalAnswers: number;
+  myResult: { isCorrect: boolean; points: number } | null;
 }
 
 export interface AnswerOption {
@@ -22,6 +38,7 @@ export interface QuestionData {
   timeLimit: number;
   scoringMode: 'classic' | 'accuracy';
   maxPoints: number;
+  imageUrl?: string | null;
 }
 
 interface GameState {
@@ -51,11 +68,18 @@ interface GameState {
   currentQuestion: QuestionData | null;
   setCurrentQuestion: (question: QuestionData | null) => void;
   
+  questionStats: QuestionStatsData | null;
+  setQuestionStats: (stats: QuestionStatsData | null) => void;
+
   leaderboard: LeaderboardEntry[];
+  previousLeaderboard: LeaderboardEntry[];
   setLeaderboard: (leaderboard: LeaderboardEntry[]) => void;
   
   score: number;
   setScore: (score: number) => void;
+
+  lastTimeTakenMs: number;
+  setLastTimeTakenMs: (ms: number) => void;
   
   // Answer tracking
   hasAnswered: boolean;
@@ -93,11 +117,18 @@ export const useGameStore = create<GameState>((set) => ({
   currentQuestion: null,
   setCurrentQuestion: (currentQuestion) => set({ currentQuestion }),
 
+  questionStats: null,
+  setQuestionStats: (questionStats) => set({ questionStats }),
+
   leaderboard: [],
-  setLeaderboard: (leaderboard) => set({ leaderboard }),
+  previousLeaderboard: [],
+  setLeaderboard: (leaderboard) => set((state) => ({ leaderboard, previousLeaderboard: state.leaderboard })),
 
   score: 0,
   setScore: (score) => set({ score }),
+
+  lastTimeTakenMs: 0,
+  setLastTimeTakenMs: (lastTimeTakenMs) => set({ lastTimeTakenMs }),
   
   hasAnswered: false,
   setHasAnswered: (hasAnswered) => set({ hasAnswered }),
@@ -110,8 +141,11 @@ export const useGameStore = create<GameState>((set) => ({
     phase: 'lobby',
     players: [],
     currentQuestion: null,
+    questionStats: null,
     leaderboard: [],
+    previousLeaderboard: [],
     score: 0,
+    lastTimeTakenMs: 0,
     isConnected: false,
     hasAnswered: false,
     lastAnswerCorrect: null,

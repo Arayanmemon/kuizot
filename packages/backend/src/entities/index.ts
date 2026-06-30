@@ -8,3 +8,4 @@ export * from './audit-log.entity';
 export * from './subscription.entity';
 export * from './payment-request.entity';
 export * from './credit-transaction.entity';
+export * from './question-stat.entity';

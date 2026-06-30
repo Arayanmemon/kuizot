@@ -20,7 +20,7 @@ export class SessionHistoryService {
     hostId: string,
     playerCount: number,
     leaderboard: LeaderboardEntry[],
-  ): Promise<void> {
+  ): Promise<GameSession> {
     const session = this.gameSessionRepo.create({
       pin,
       quiz: { id: quizId } as any,
@@ -28,7 +28,8 @@ export class SessionHistoryService {
       playerCount,
       leaderboardSnapshot: leaderboard,
     });
-    await this.gameSessionRepo.save(session);
+    const savedSession = await this.gameSessionRepo.save(session);
     await this.quizRepo.increment({ id: quizId }, 'playCount', 1);
+    return savedSession;
   }
 }

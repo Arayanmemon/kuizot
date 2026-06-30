@@ -21,6 +21,7 @@ import { SubscriptionsPage } from './pages/admin/SubscriptionsPage';
 import { AuditLogPage } from './pages/admin/AuditLogPage';
 import { SettingsPage } from './pages/admin/SettingsPage';
 import { PaymentRequestsPage } from './pages/admin/PaymentRequestsPage';
+import { OwnerAnalyticsPage } from './pages/OwnerAnalyticsPage';
 import { BillingPage } from './pages/settings/BillingPage';
 import { TopUpPage } from './pages/settings/TopUpPage';
 import { PaymentHistoryPage } from './pages/settings/PaymentHistoryPage';
@@ -31,12 +32,14 @@ function AppInner() {
     setConnected, 
     setPhase, 
     setCurrentQuestion, 
-    setLeaderboard, 
+    setLeaderboard,
+    setQuestionStats,
     addPlayer, 
     removePlayer,
     setScore,
     setHasAnswered,
     setLastAnswerCorrect,
+    setLastTimeTakenMs,
     resetStore,
   } = useGameStore();
 
@@ -44,7 +47,7 @@ function AppInner() {
 
   useEffect(() => {
     // Connect to the backend /game namespace
-    const newSocket = io('http://localhost:3000/game', {
+    const newSocket = io(`${import.meta.env.VITE_API_URL ?? 'http://localhost:3000'}/game`, {
       autoConnect: true,
     });
     
@@ -77,6 +80,7 @@ function AppInner() {
         timeLimit: data.timeLimit,
         scoringMode: data.scoringMode,
         maxPoints: data.maxPoints,
+        imageUrl: data.imageUrl ?? null,
       });
       setHasAnswered(false);
       setLastAnswerCorrect(null);
@@ -84,12 +88,32 @@ function AppInner() {
     });
 
     newSocket.on('answer_result', (data) => {
+      // Legacy — keep for compatibility
       console.log('Answer result:', data);
-      setHasAnswered(true);
+    });
+
+    // Player submitted — move to waiting screen (no result shown yet)
+    newSocket.on('answer_submitted', () => {
+      useGameStore.getState().setHasAnswered(true);
+      useGameStore.getState().setPhase('waiting');
+    });
+
+    // Host revealed stats — now show player their personal result
+    newSocket.on('answer_reveal', (data: { isCorrect: boolean; correctOptionId: string; chosenOptionId: string | null }) => {
       setLastAnswerCorrect(data.isCorrect);
-      if (data.points > 0) {
-        setScore(data.points);
-      }
+      useGameStore.getState().setPhase('stats');
+    });
+
+    // Host-side question stats (aggregate) — also sets stats phase for host
+    newSocket.on('question_stats', (data) => {
+      console.log('Question stats:', data);
+      setQuestionStats({
+        questionText: data.questionText,
+        options: data.options,
+        totalAnswers: data.totalAnswers,
+        myResult: null,
+      });
+      setPhase('stats');
     });
 
     newSocket.on('leaderboard_update', (data) => {
@@ -100,14 +124,22 @@ function AppInner() {
 
     newSocket.on('game_ended', () => {
       console.log('Game ended');
-      // Players get sent back to the join page and their game state is cleared.
-      // The host handles their own navigation via the "Back to Lobby" button.
+      const currentRole = useGameStore.getState().role;
+      if (currentRole === 'player') {
+        // Show the finished screen — player stays on /player to see their result
+        useGameStore.getState().setPhase('finished');
+      }
+      // Host handles their own navigation via the "Back to Lobby" button
+    });
+
+    // Fired by the host clicking "End Session" — clears players out
+    newSocket.on('session_closed', () => {
+      console.log('Session closed by host');
       const currentRole = useGameStore.getState().role;
       if (currentRole === 'player') {
         resetStore();
         navigate('/');
       }
-      // Host stays — their HostDashboard already called setPhase('lobby') in endGame()
     });
 
     // Host events
@@ -152,6 +184,7 @@ function AppInner() {
         <Route path="/dashboard" element={<OwnerDashboard />} />
         <Route path="/dashboard/quizzes/:id/edit" element={<QuizEditor />} />
         <Route path="/dashboard/quizzes/:id/history" element={<SessionHistoryPage />} />
+        <Route path="/dashboard/quizzes/:id/analytics" element={<OwnerAnalyticsPage />} />
         <Route path="/settings/billing" element={<BillingPage />} />
         <Route path="/settings/billing/topup" element={<TopUpPage />} />
         <Route path="/settings/billing/history" element={<PaymentHistoryPage />} />

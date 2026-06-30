@@ -2,7 +2,7 @@ import axios from 'axios';
 import { useAuthStore } from '../store/authStore';
 
 const api = axios.create({
-  baseURL: 'http://localhost:3000',
+  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:3000',
 });
 
 // Attach Bearer token to every request
@@ -56,7 +56,7 @@ api.interceptors.response.use(
         const refreshToken = localStorage.getItem('kuizot-refresh-token');
         if (!refreshToken) throw new Error('No refresh token');
 
-        const { data } = await axios.post('http://localhost:3000/auth/refresh', { refreshToken });
+        const { data } = await axios.post(`${import.meta.env.VITE_API_URL ?? 'http://localhost:3000'}/auth/refresh`, { refreshToken });
 
         const { setAuth } = useAuthStore.getState();
         const currentUser = useAuthStore.getState().user!;

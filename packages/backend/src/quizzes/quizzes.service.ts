@@ -22,7 +22,7 @@ export class QuizzesService {
   async findAllByOwner(userId: string): Promise<Quiz[]> {
     return this.quizRepository.find({
       where: { creator: { id: userId } },
-      relations: ['creator'],
+      relations: ['creator', 'questions'],
       order: { createdAt: 'DESC' },
     });
   }

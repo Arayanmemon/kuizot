@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { useAuthStore } from '../store/authStore';
 import { Leaderboard } from '../components/Leaderboard';
+import { QuestionMedia } from '../components/QuestionMedia';
 import api from '../lib/api';
 import { useAudio } from '../hooks/useAudio';
 
@@ -19,6 +20,7 @@ export const HostDashboard = () => {
     players,
     leaderboard,
     currentQuestion,
+    questionStats,
     setSessionData,
     setPhase,
     socket,
@@ -40,6 +42,9 @@ export const HostDashboard = () => {
   // Track question progress
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
+
+  // True once the game has been played through (returned to lobby after last question)
+  const [gameCompleted, setGameCompleted] = useState(false);
 
   // Countdown timer
   const [timeLeft, setTimeLeft] = useState(0);
@@ -158,7 +163,10 @@ export const HostDashboard = () => {
   }, [phase]);
 
   // Host clicks "Start" in the lobby for the first question
-  const startFirstQuestion = () => fireQuestion(0);
+  const startFirstQuestion = () => {
+    setGameCompleted(false);
+    fireQuestion(0);
+  };
 
   // Host clicks "Next Question" from the leaderboard
   const nextQuestion = () => {
@@ -166,10 +174,17 @@ export const HostDashboard = () => {
     fireQuestion(currentQuestionIndex);
   };
 
-  // Show the leaderboard after a question ends
-  const showLeaderboard = () => {
+  // Show question stats after a question ends (new flow)
+  const showQuestionStats = () => {
     if (!socket || !pin) return;
     socket.off('answer_received');
+    timerAudio.stop();
+    socket.emit('show_question_stats', { pin });
+  };
+
+  // From stats screen, proceed to leaderboard
+  const showLeaderboard = () => {
+    if (!socket || !pin) return;
     socket.emit('show_leaderboard', { pin });
   };
 
@@ -177,7 +192,22 @@ export const HostDashboard = () => {
   const endGame = () => {
     if (!socket || !pin) return;
     socket.emit('end_game', { pin });
+    setGameCompleted(true);
     setPhase('lobby');
+  };
+
+  // Fully exit the session back to the quiz selector
+  const exitSession = () => {
+    // Tell the server to notify all players to clear their state
+    if (socket && pin) {
+      socket.emit('close_session', { pin });
+    }
+    // Reset game store session data so pin is cleared and we go back to the selector
+    const { resetStore } = useGameStore.getState();
+    resetStore();
+    setGameCompleted(false);
+    setCurrentQuestionIndex(0);
+    setTotalQuestions(0);
   };
 
   const isLastQuestion = currentQuestionIndex >= totalQuestions;
@@ -265,12 +295,24 @@ export const HostDashboard = () => {
 
         <div className="flex justify-between items-center w-full max-w-3xl mb-4">
           <h3 className="text-2xl font-bold text-white">{players.length} Players</h3>
-          <button
-            onClick={startFirstQuestion}
-            className="bg-white text-purple-700 font-black text-lg rounded-2xl shadow-xl px-8 py-3 hover:bg-white/90 transition-colors"
-          >
-            Start
-          </button>
+          <div className="flex gap-3">
+            {gameCompleted && (
+              <button
+                onClick={exitSession}
+                className="bg-red-500/80 hover:bg-red-500 text-white font-black text-lg rounded-2xl shadow-xl px-6 py-3 transition-colors"
+              >
+                End Session
+              </button>
+            )}
+            <button
+              onClick={startFirstQuestion}
+              disabled={players.length === 0}
+              title={players.length === 0 ? 'Waiting for players to join…' : undefined}
+              className="bg-white text-purple-700 font-black text-lg rounded-2xl shadow-xl px-8 py-3 hover:bg-white/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {gameCompleted ? 'Play Again' : 'Start'}
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-3 w-full max-w-3xl">
@@ -329,6 +371,13 @@ export const HostDashboard = () => {
           {currentQuestion?.text ?? 'Loading question…'}
         </h2>
 
+        {/* Question media — shown on host screen so host sees what players see */}
+        {currentQuestion?.imageUrl && (
+          <div className="max-w-2xl w-full mx-auto mb-6">
+            <QuestionMedia url={currentQuestion.imageUrl} />
+          </div>
+        )}
+
         <div className="flex justify-center mb-6">
           <span className="bg-white/10 text-white font-bold rounded-full px-5 py-2 text-lg">
             {answerCount} / {players.length} answered
@@ -355,10 +404,72 @@ export const HostDashboard = () => {
 
         <div className="flex justify-end mt-8 max-w-4xl w-full mx-auto">
           <button
-            onClick={showLeaderboard}
+            onClick={showQuestionStats}
             className="bg-white/20 text-white font-bold py-3 px-8 rounded-2xl hover:bg-white/30 transition-colors"
           >
             {timerExpired ? 'Show Results' : 'Skip / Show Results'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Stats Phase ──────────────────────────────────────────────────────────
+  if (phase === 'stats') {
+    const opts = questionStats?.options ?? [];
+    const maxCount = Math.max(...opts.map((o) => o.count), 1);
+
+    return (
+      <div className="gradient-bg min-h-screen flex flex-col p-8">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-black text-white tracking-tight">Kuizot</h1>
+          <span className="bg-white/20 text-white font-bold rounded-full px-4 py-1.5 text-sm">
+            Q {currentQuestionIndex} / {totalQuestions}
+          </span>
+        </div>
+
+        <h2 className="text-3xl font-black text-white text-center mb-8">
+          {questionStats?.questionText ?? currentQuestion?.text ?? ''}
+        </h2>
+
+        {/* Option bars */}
+        <div className="flex flex-col gap-4 max-w-3xl w-full mx-auto flex-1">
+          {opts.map((opt) => (
+            <div key={opt.id} className="flex items-center gap-4">
+              {/* Correct tick */}
+              <span className="text-2xl w-8 text-center shrink-0">
+                {opt.isCorrect ? '✅' : ''}
+              </span>
+              <div className="flex-1">
+                <div className="flex justify-between mb-1">
+                  <span className="text-white font-semibold text-sm truncate">{opt.text}</span>
+                  <span className="text-white/70 text-sm font-bold ml-2 shrink-0">
+                    {opt.count} ({opt.percent}%)
+                  </span>
+                </div>
+                <div className="h-8 bg-white/10 rounded-xl overflow-hidden">
+                  <div
+                    className="h-full rounded-xl transition-all duration-700 ease-out"
+                    style={{
+                      width: `${(opt.count / maxCount) * 100}%`,
+                      backgroundColor: opt.isCorrect ? '#22c55e' : opt.color,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex justify-between items-center mt-8 max-w-3xl w-full mx-auto">
+          <span className="text-white/60 text-sm">
+            {questionStats?.totalAnswers ?? 0} / {players.length} answered
+          </span>
+          <button
+            onClick={showLeaderboard}
+            className="bg-white text-purple-700 font-black text-lg rounded-2xl shadow-xl px-8 py-3 hover:bg-white/90 transition-colors"
+          >
+            Show Leaderboard →
           </button>
         </div>
       </div>

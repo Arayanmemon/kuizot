@@ -245,13 +245,12 @@ const QuizCard = ({ quiz, tier, onHost }: QuizCardProps) => {
         >
           Host
         </button>
-        <FeatureGate feature="per_question_analytics" tier={tier}>
-          <button
-            className="py-2 rounded-xl bg-white/10 text-white text-sm font-semibold w-full"
-          >
-            Stats
-          </button>
-        </FeatureGate>
+        <Link
+          to={`/dashboard/quizzes/${quiz.id}/analytics`}
+          className="py-2 rounded-xl bg-white/20 hover:bg-white/30 transition-colors text-sm font-semibold flex items-center justify-center"
+        >
+          Stats
+        </Link>
       </div>
     </div>
   );
